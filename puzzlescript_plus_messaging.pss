@@ -1,0 +1,267 @@
+(
+========================================================================
+ PUZZLESCRIPT+ EXTENSIONS TUTORIAL - MESSAGING & FLOW
+ This is NOT vanilla PuzzleScript. Paste it into the PuzzleScript+
+ editor (Auroriax/PuzzleScriptPlus on GitHub, hosted from that repo's
+ gh-pages site) - it will NOT compile at puzzlescript.net, since every
+ feature below is a PS+-only addition on top of the base engine.
+
+ Read puzzlescript_tutorial_4_messaging.pss (in this same repo) FIRST.
+ Everything from that file - MESSAGE, the in-rule "message" command,
+ CHECKPOINT, RESTART, CANCEL, WIN, noundo, norestart - still works
+ completely unchanged here. This file covers ONLY what PS+ adds on
+ top of that, checked against Auroriax/PuzzleScriptPlus's own engine
+ source, not guessed from memory.
+
+ TUTORIAL MAP -- Ctrl+F for a tag like [T3] to jump straight to it.
+
+ [T1] level_select + section + both forms of "goto" - jump straight
+      to any section from an in-game menu, or redirect the player
+      there from a rule or from the LEVELS list itself
+ [T2] level_select_lock, level_select_unlocked_ahead, and
+      level_select_solve_symbol - locking the menu until earlier
+      sections are solved, plus continue_is_level_select
+ [T3] runtime_metadata_twiddling: a RULE changing noundo/norestart
+      live, mid-game - this is PS+'s real answer to "overwrite undo
+      or restart," well beyond the static Prelude-only vanilla switch
+ [T4] Three more in-RULE commands vanilla doesn't have at all: undo
+      (trigger a real undo from a rule), nosave (this turn doesn't go
+      on the undo stack), and quit (bail to the menu or title screen)
+ [T5] message_text_align / text_message_continue / text_controls -
+      you've been looking at all three since this file's first
+      screen; see the note here for why
+ [T6] grab bag: nokeyboard, sprite_size, case_sensitive, tween_*
+
+ Reload this file (hit RUN again) after the first compile: because of
+ skip_title_screen plus continue_is_level_select below, you'll land
+ straight in the level-select menu instead of a title screen - and
+ that menu IS this tutorial's table of contents, one entry per section
+ tag above.
+========================================================================
+)
+
+title PuzzleScript+ Extensions - Messaging & Flow Tutorial
+author Claude, for Gail
+
+( [T1] -- lets the player open an in-game menu and jump straight to   )
+( any SECTION below, instead of only ever advancing linearly.         )
+level_select
+
+( [T2] -- lock sections until nearby progress unlocks them.           )
+level_select_lock
+level_select_unlocked_ahead 2
+level_select_solve_symbol done
+continue_is_level_select
+skip_title_screen
+
+( [T3] -- required before any rule below is allowed to change a       )
+( "twiddleable" flag like noundo/norestart at runtime. Compiles to an )
+( error without this line - try deleting it and reloading if you want )
+( to see that error for yourself.                                     )
+runtime_metadata_twiddling
+
+( [T5] -- global for the whole file, same as noundo/norestart back in )
+( the vanilla tutorial. You've already seen these three in effect on  )
+( every screen so far; see [T5] below for what to look for. )
+message_text_align left
+text_message_continue Tap X, boss.
+text_controls Arrows to move, X for everything else.
+
+========================================================================
+OBJECTS
+========================================================================
+
+Background .
+lightgray
+
+Wall #
+darkgray
+
+Player P
+blue
+
+Exit d
+green
+.....
+.000.
+.000.
+.000.
+.....
+
+Seal s
+purple
+.....
+.000.
+.000.
+.000.
+.....
+
+Unseal u
+lightgreen
+.....
+.000.
+.000.
+.000.
+.....
+
+RewindTile r
+pink
+.....
+.000.
+.000.
+.000.
+.....
+
+Bridge b
+brown
+.....
+.000.
+.000.
+.000.
+.....
+
+Water w
+lightblue
+.....
+.000.
+.000.
+.000.
+.....
+
+MenuButton m
+darkred
+.....
+.000.
+.000.
+.000.
+.....
+
+========================================================================
+LEGEND
+========================================================================
+( nothing composite this time. )
+
+========================================================================
+SOUNDS
+========================================================================
+( intentionally empty. )
+
+========================================================================
+COLLISIONLAYERS
+========================================================================
+
+Background
+Exit, Seal, Unseal, RewindTile, Bridge, Water, MenuButton
+Wall, Player
+
+========================================================================
+RULES
+========================================================================
+
+( [T3] runtime_metadata_twiddling: overwriting undo/restart from a RULE -
+  Each twiddleable command (noundo, norestart, ...) reads everything to
+  its right as its value and stops parsing that line right there, same
+  as "message" does. That means you CANNOT chain two of them, or a
+  twiddle and a message, on one rule's output - each needs its OWN
+  separate rule matching the same pattern. All of them still fire on
+  the same turn; PuzzleScript just accumulates commands from every rule
+  that matched, not only the first one. "set" (or any word besides the
+  two magic ones below) turns a flag on; "wipe" deletes it (turns it
+  back off); "default" restores whatever the Prelude originally said. )
+
+[ Player Seal ] -> [ Player Seal ] noundo set
+[ Player Seal ] -> [ Player Seal ] norestart set
+[ Player Seal ] -> [ Player Seal ] message Sealed - no undo, no restart until you reach Unseal.
+
+[ Player Unseal ] -> [ Player Unseal ] noundo wipe
+[ Player Unseal ] -> [ Player Unseal ] norestart wipe
+[ Player Unseal ] -> [ Player Unseal ] message Unsealed - undo and restart both work again.
+
+( -- next: [T4] )
+
+( [T4] three more in-RULE commands vanilla doesn't have -------------- )
+( undo: fires a REAL undo, same stack Z uses, from inside a rule.       )
+( nosave: this turn's result never gets pushed onto the undo stack, so  )
+( there is nothing there for Z to rewind back to once you're past it.  )
+( quit: leaves the level for the level-select menu (since level_select )
+( is set above) or the title screen otherwise. )
+
+[ Player RewindTile ] -> [ Player RewindTile ] undo
+
+[ > Player | Bridge ] -> [ > Player | Water ] nosave message The bridge is gone behind you - nosave means Z can't rebuild it.
+
+[ Player MenuButton ] -> [ Player MenuButton ] quit message Back to the level-select you go.
+
+========================================================================
+WINCONDITIONS
+========================================================================
+
+Some Player on Exit
+
+========================================================================
+LEVELS
+========================================================================
+
+section LevelSelect
+
+#########
+#P......#
+#......d#
+#########
+MESSAGE [T1]: press Escape (or however your build exposes it) to open the level-select menu at any point from here on - every SECTION line below becomes one entry in it. Sections, not individual levels, are the unit level_select jumps between.
+
+MESSAGE [T1] continued - one more form of "goto" before we move on: the LEVELS list itself can hold a standalone "goto SomeSection" line, unconditionally redirecting the player there the moment it's reached in sequence - same mechanism a rule's own "goto" command uses, just triggered by reaching this point in the LEVELS list rather than by anything the player did.
+
+goto Locking
+
+section Locking
+
+#########
+#P......#
+#......d#
+#########
+MESSAGE [T2]: level_select_lock greys out sections you haven't reached yet, except for a short lookahead - level_select_unlocked_ahead 2 keeps roughly the next couple visible so you're not staring at a wall of locked entries.
+
+MESSAGE [T2] continued: solve a section (reach its Exit) and level_select_solve_symbol's text marks it done in the menu. continue_is_level_select means "continue" on the title screen opens this same menu, not just a resume - moot here since skip_title_screen skips that screen outright.
+
+section TwiddleUndo
+
+#############
+#P..s....u..#
+#...........#
+#..........d#
+#############
+MESSAGE [T3]: touching Seal disabled undo AND restart at once - two separate rules, both matching Seal, each contributing one twiddle command to the same turn. Touching Unseal wiped both flags again.
+
+MESSAGE [T3] continued: try Z and R directly - they really do stop responding after Seal, and work again after Unseal, all without touching the Prelude or reloading. That's the part static noundo/norestart back in the vanilla file couldn't do.
+
+section UndoNosaveQuit
+
+###############
+#P.r....b...m.#
+#.............#
+#............d#
+###############
+MESSAGE [T4]: RewindTile silently undid your last step - no popup, on purpose: firing "undo" clears any pending message that same turn before the undo happens, so combining undo with message on one rule would just show nothing at all.
+
+MESSAGE [T4] continued: crossing the Bridge turned it to Water and popped a message, but notice Z now refuses to rebuild that bridge - nosave kept that turn off the undo stack entirely. MenuButton's "quit" dropped you back at the [T1] level-select menu, not the level's own start.
+
+section MessageStyle
+
+#########
+#P......#
+#......d#
+#########
+MESSAGE [T5]: every message screen in this file, including this one, has been left-aligned instead of centered, and the button hint at the bottom read your own custom text instead of the default "X to continue."
+
+MESSAGE [T5] continued: that's message_text_align, text_message_continue, and text_controls - all three set once in the Prelude, applying globally, the same "declare it once, it affects everything" pattern noundo/norestart used back in the vanilla tutorial.
+
+section GrabBag
+
+MESSAGE [T6] grab bag, part 1: nokeyboard drops the Player/movement requirement entirely, for mouse-only games - it would break every level in this file, so it's only described here, not turned on. sprite_size lets object art be something other than the fixed 5x5 grid every sprite in this repo has used so far.
+
+MESSAGE [T6] grab bag, part 2: case_sensitive makes LEGEND symbols distinguish uppercase from lowercase - off by default, same as vanilla, which is why every object here still got its own visually distinct symbol rather than leaning on case.
+
+MESSAGE [T6] grab bag, part 3: tween_length / tween_easing / tween_snap smoothly animate movement between cells instead of vanilla's instant snap - nice polish, but unrelated to messaging or undo/restart, so it only gets a mention here.
+
+MESSAGE That's everything PS+ adds on top of the vanilla file for messaging and flow. One more of these lives in this repo for PuzzleScript Next specifically - go compare what it adds on top of PS+.
