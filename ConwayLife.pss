@@ -1,0 +1,199 @@
+title Conway's Game of Life
+author Gail
+
+run_rules_on_level_start
+
+================
+OBJECTS
+================
+
+Background .
+DARKGRAY
+
+Wall #
+BLACK
+
+( --- Life states --- )
+
+Alive O
+GREEN
+.000.
+00000
+00000
+00000
+.000.
+
+Dead _
+DARKGRAY
+
+( --- Next-turn buffer (never rendered; consumed within the same turn) --- )
+
+NextAlive
+GREEN
+
+NextDead
+DARKGRAY
+
+( --- Saturating neighbour counter: C4 means "4 or more" --- )
+
+C0
+TRANSPARENT
+
+C1
+TRANSPARENT
+
+C2
+TRANSPARENT
+
+C3
+TRANSPARENT
+
+C4
+TRANSPARENT
+
+( --- Relay marker used to reach diagonals --- )
+
+Relay
+TRANSPARENT
+
+Player p
+RED
+.000.
+.0.0.
+.000.
+..0..
+.0.0.
+
+================
+LEGEND
+================
+
+Counter  = C0 or C1 or C2 or C3 or C4
+Cell     = Alive or Dead
+NextCell = NextAlive or NextDead
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Cell, NextCell
+Counter
+Relay
+Player, Wall
+
+================
+RULES
+================
+
+( ---------- PHASE 1: every non-wall tile is a cell carrying a counter ---------- )
+
+[ no Cell no NextCell no Wall ] -> [ Dead ]
+[ Cell no Counter ] -> [ Cell C0 ]
+
+
+( ---------- PHASE 2: reset the counters ---------- )
+
+[ C1 ] -> [ C0 ]
+[ C2 ] -> [ C0 ]
+[ C3 ] -> [ C0 ]
+[ C4 ] -> [ C0 ]
+
+
+( ---------- PHASE 3: orthogonal neighbours ----------
+  One EXPLICIT direction at a time. Within a direction the counter rules are
+  written high-to-low so a single neighbour cannot chain C0 -> C1 -> C2.
+  Do NOT collapse these into un-prefixed rules: an un-prefixed rule expands
+  into four copies that run in sequence, and the first copy to fire blocks
+  the other three.                                                             )
+
+RIGHT [ Alive | C3 ] -> [ Alive | C4 ]
+RIGHT [ Alive | C2 ] -> [ Alive | C3 ]
+RIGHT [ Alive | C1 ] -> [ Alive | C2 ]
+RIGHT [ Alive | C0 ] -> [ Alive | C1 ]
+
+LEFT  [ Alive | C3 ] -> [ Alive | C4 ]
+LEFT  [ Alive | C2 ] -> [ Alive | C3 ]
+LEFT  [ Alive | C1 ] -> [ Alive | C2 ]
+LEFT  [ Alive | C0 ] -> [ Alive | C1 ]
+
+UP    [ Alive | C3 ] -> [ Alive | C4 ]
+UP    [ Alive | C2 ] -> [ Alive | C3 ]
+UP    [ Alive | C1 ] -> [ Alive | C2 ]
+UP    [ Alive | C0 ] -> [ Alive | C1 ]
+
+DOWN  [ Alive | C3 ] -> [ Alive | C4 ]
+DOWN  [ Alive | C2 ] -> [ Alive | C3 ]
+DOWN  [ Alive | C1 ] -> [ Alive | C2 ]
+DOWN  [ Alive | C0 ] -> [ Alive | C1 ]
+
+
+( ---------- PHASE 4: diagonal neighbours ----------
+  Patterns are collinear, so a diagonal needs two hops. Drop a Relay one tile
+  to the right of every Alive, then bump up and down from the Relay: that
+  lands on the up-right and down-right diagonals. Relays are deliberately
+  allowed to sit on walls, since the tile beyond a wall is still a real
+  diagonal neighbour.                                                          )
+
+RIGHT [ Alive | no Relay ] -> [ Alive | Relay ]
+
+UP    [ Relay | C3 ] -> [ Relay | C4 ]
+UP    [ Relay | C2 ] -> [ Relay | C3 ]
+UP    [ Relay | C1 ] -> [ Relay | C2 ]
+UP    [ Relay | C0 ] -> [ Relay | C1 ]
+
+DOWN  [ Relay | C3 ] -> [ Relay | C4 ]
+DOWN  [ Relay | C2 ] -> [ Relay | C3 ]
+DOWN  [ Relay | C1 ] -> [ Relay | C2 ]
+DOWN  [ Relay | C0 ] -> [ Relay | C1 ]
+
+[ Relay ] -> [ ]
+
+( mirror: relay one tile to the LEFT reaches the up-left and down-left diagonals )
+
+LEFT  [ Alive | no Relay ] -> [ Alive | Relay ]
+
+UP    [ Relay | C3 ] -> [ Relay | C4 ]
+UP    [ Relay | C2 ] -> [ Relay | C3 ]
+UP    [ Relay | C1 ] -> [ Relay | C2 ]
+UP    [ Relay | C0 ] -> [ Relay | C1 ]
+
+DOWN  [ Relay | C3 ] -> [ Relay | C4 ]
+DOWN  [ Relay | C2 ] -> [ Relay | C3 ]
+DOWN  [ Relay | C1 ] -> [ Relay | C2 ]
+DOWN  [ Relay | C0 ] -> [ Relay | C1 ]
+
+[ Relay ] -> [ ]
+
+
+( ---------- PHASE 5: apply Conway's rules ---------- )
+
+[ Alive C2 ] -> [ NextAlive C2 ]
+[ Alive C3 ] -> [ NextAlive C3 ]
+[ Dead  C3 ] -> [ NextAlive C3 ]
+[ Cell ]     -> [ NextDead ]
+
+
+( ---------- PHASE 6: commit ---------- )
+
+[ NextAlive ] -> [ Alive ]
+[ NextDead ]  -> [ Dead ]
+
+================
+WINCONDITIONS
+================
+
+================
+LEVELS
+================
+
+#############
+#.......p...#
+#...O.......#
+#....O......#
+#..OOO......#
+#...........#
+#....OOO....#
+#...........#
+#...........#
+#############

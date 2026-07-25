@@ -1,0 +1,486 @@
+(
+========================================================================
+ PUZZLESCRIPT RULE-ENGINE TUTORIAL
+ Paste this whole file into the editor at puzzlescript.net and hit RUN.
+ Written for classic PuzzleScript (not the "Next" fork). Most objects
+ are flat colors; a few that sit ON TOP of another object use a small
+ centered sprite instead of a full block, so whatever's underneath
+ still shows around the edges.
+========================================================================
+
+ TUTORIAL MAP -- Ctrl+F for a tag like [T3] to jump straight to it.
+ Nothing below [T0] is conceptually new - it's just the required
+ boilerplate every PuzzleScript file needs. Skip straight to [T1]
+ if you want to get to the interesting part immediately.
+
+ [T0]  Objects / Legend / Sounds / CollisionLayers - boilerplate, skim it
+ [T1]  One pass, top to bottom: how a turn actually executes
+ [T2]  A single rule already loops itself to exhaustion
+ [T3]  Rule GROUPS: + and STARTLOOP/ENDLOOP, for rules that need
+       to feed each other
+ [T4]  Direction keywords: explicit vs "no direction = all four",
+       plus the horizontal/vertical shortcut
+ [T5]  "or" properties vs "and" aggregates
+ [T6]  Removal rule: only things referred to (then dropped) get deleted
+ [T7]  Collision layers: what can share a cell, what can't
+ [T8]  again: self-driving multi-turn animation
+ [T9]  late: rules that run after movement resolves
+ [T10] Grab bag: DEBUG flag, the NO keyword, object identity
+ [T11] Capping how far a self-looping spread goes (a generic version
+       of the Wood -> Spark -> Flame / Explosion:C -> B -> A pattern)
+
+ Every tag above appears twice more below: once as a comment right
+ above the RULES it describes, and once right above the LEVEL that
+ demonstrates it. Each of those comments ends with "-- next: [Tn]"
+ so you can just keep searching forward. There's also a corresponding
+ in-game MESSAGE after every level recapping the point.
+========================================================================
+)
+
+title Rule-Engine Tutorial
+author Claude, for Gail
+again_interval 0.4
+
+========================================================================
+OBJECTS
+========================================================================
+( [T0] -- Background, Wall, Player, Crate, SmartCrate, Wood, and Glow  )
+( are the objects other things get drawn ON TOP of, so they stay flat )
+( colors filling the whole cell. Everything else below is an overlay  )
+( object - it uses a small 3x3 sprite centered in the cell (with a    )
+( transparent 1-pixel border) instead of a full block, so whatever    )
+( it's sitting on stays visible around the edges. Same 5x5 sprite     )
+( grid syntax as any PuzzleScript sprite - "0" means "use the first   )
+( listed color," "." means "see-through." )
+
+Background .
+lightgray
+
+Wall #
+darkgray
+
+Player P
+blue
+
+Crate C
+orange
+
+SmartCrate S
+yellow
+
+Wood w
+brown
+
+Glow g
+lightgreen
+
+Flood o
+lightblue
+.....
+.000.
+.000.
+.000.
+.....
+
+Ping i
+pink
+.....
+.000.
+.000.
+.000.
+.....
+
+Pulse u
+purple
+.....
+.000.
+.000.
+.000.
+.....
+
+Spark k
+lightred
+.....
+.000.
+.000.
+.000.
+.....
+
+Blaze z
+orange
+.....
+.000.
+.000.
+.000.
+.....
+
+Flame f
+red
+.....
+.000.
+.000.
+.000.
+.....
+
+Embers e
+darkred
+.....
+.000.
+.000.
+.000.
+.....
+
+Ash a
+gray
+.....
+.000.
+.000.
+.000.
+.....
+
+Coin
+yellow
+.....
+.000.
+.000.
+.000.
+.....
+
+Bell b
+purple
+.....
+.000.
+.000.
+.000.
+.....
+
+RungBell
+darkblue
+.....
+.000.
+.000.
+.000.
+.....
+
+Exit d
+green
+.....
+.000.
+.000.
+.000.
+.....
+
+Ring3 r
+purple
+.....
+.000.
+.000.
+.000.
+.....
+
+Ring2
+blue
+.....
+.000.
+.000.
+.000.
+.....
+
+Ring1
+lightblue
+.....
+.000.
+.000.
+.000.
+.....
+
+Ring0
+lightgray
+.....
+.000.
+.000.
+.000.
+.....
+
+========================================================================
+LEGEND
+========================================================================
+( [T0] -- single-object symbols were already assigned above with the  )
+( "Name Char" shortcut. This section is where COMPOSITE symbols live: )
+( "or" properties (see [T5]) and "and" stacked-object combos (see     )
+( [T5]/[T7]) that need a character of their own so they can be placed )
+( directly into a level grid.                                        )
+
+Fire = Spark or Blaze
+x = Spark and Wood
+y = Coin and Glow
+Ring = Ring3 or Ring2 or Ring1 or Ring0
+
+========================================================================
+SOUNDS
+========================================================================
+( [T0] -- intentionally empty for this tutorial. )
+
+========================================================================
+COLLISIONLAYERS
+========================================================================
+( [T0] -- order here also sets draw order, bottom to top.             )
+( [T7] -- everything listed on the SAME line below can never share a  )
+( cell with anything else on that line. Wall, Player, Crate, Smart-    )
+( Crate, and Wood all share Solid on purpose - that's what makes       )
+( them block/replace each other naturally. Bell needs its OWN layer,   )
+( separate from Player's - otherwise the two could never overlap, and  )
+( the [T9] rule below (which requires exactly that overlap) would be   )
+( impossible to ever trigger.                                          )
+
+Background
+Glow
+Coin
+Bell, RungBell, Exit
+Wall, Player, Crate, SmartCrate, Wood
+Spark, Blaze, Flame, Embers, Ash
+Flood, Ping, Pulse, Ring3, Ring2, Ring1, Ring0
+
+========================================================================
+RULES
+========================================================================
+
+( [T1] one pass, top to bottom --------------------------------------- )
+( [T3] rule GROUPS: + and STARTLOOP/ENDLOOP --------------------------- )
+( A turn runs every rule below ONCE, in order, top to bottom - not the )
+( whole file as one big loop, unless you ask for that explicitly.      )
+( Compare these two nearly-identical push mechanics: )
+
+[ > Crate | Crate ] -> [ > Crate | > Crate ]
+[ > Player | Crate ] -> [ > Player | > Crate ]
+
+( Plain Crate: the "keep pushing" rule (line 1) already ran to         )
+( exhaustion and finished before the "start pushing" rule (line 2)     )
+( ever marks anything as moving. So with two Crates in a row, line 1   )
+( found nothing to do, line 2 marks only the front Crate, and that     )
+( Crate can't move because the second one's still in the way. Net      )
+( result: nothing moves at all. )
+
+[ > SmartCrate | SmartCrate ] -> [ > SmartCrate | > SmartCrate ]
++ [ > Player | SmartCrate ] -> [ > Player | > SmartCrate ]
+
+( SmartCrate: the leading + glues these two rules into one GROUP,      )
+( which the engine re-tries as a pair, back and forth, until nothing   )
+( changes. Now "start pushing" marks the first crate moving, the       )
+( group loops back, "keep pushing" notices and marks the second one    )
+( too, loops back again, and so on - a proper domino. STARTLOOP /      )
+( ENDLOOP does the same job for bigger blocks that all need to feed    )
+( each other. -- next: [T2] )
+
+( [T2] a single rule already loops itself ------------------------------ )
+( You don't always need + or STARTLOOP. Each rule on its own is        )
+( already "applied as often as it can be" before the engine moves to   )
+( the next line. Watch this fill an entire room from one keypress: )
+
+[ Flood | no Flood no Wall ] -> [ Flood | Flood ]
+
+( No loop construct anywhere above, and it doesn't need one - but      )
+( self-looping only cascades a rule against ITSELF. It won't pull a    )
+( DIFFERENT rule listed below it back into the loop; that's what +     )
+( and STARTLOOP are actually for (see [T1]/[T3] above). -- next: [T4] )
+
+( [T4] direction keywords, and the horizontal/vertical shortcut ------- )
+( No direction keyword at all = checked in all four compass directions )
+( automatically. Ping is deliberately restricted to two of them; Pulse )
+( is left wide open: )
+
+horizontal [ Ping | no Ping no Wall ] -> [ Ping | Ping ]
+[ Pulse | no Pulse no Wall ] -> [ Pulse | Pulse ]
+
+( "horizontal" is shorthand for writing out separate LEFT and RIGHT    )
+( lines (there's a matching "vertical" too). Ping only ever spreads    )
+( into a straight horizontal line. Pulse spreads into a plus/diamond,  )
+( because leaving the direction off checks LEFT, RIGHT, UP, and DOWN   )
+( all at once. -- next: [T5] )
+
+( [T5] "or" properties vs "and" aggregates ------------------------------ )
+( [T6] only things REFERRED to, then dropped, get removed -------------- )
+( Fire = Spark or Blaze isn't a real object - it's a label meaning     )
+( "whichever of these is actually here." Neither Spark nor Blaze ever  )
+( stops being itself just because a rule mentions "Fire." )
+
+[ Fire Wood ] -> [ Fire ]
+[ Fire | Wood ] -> [ Fire | Blaze ]
+
+( Line 1: the cell has Fire (Spark or Blaze - a different layer than   )
+( Wood, so they're allowed to share a cell) AND Wood. "Fire" is        )
+( repeated on the right in the same slot it matched on the left, so    )
+( whichever object it actually was is left completely untouched. Wood  )
+( is mentioned on the left but dropped on the right - so it's          )
+( removed. That's [T6]: only referenced-then-omitted things vanish;    )
+( things never mentioned at all are never touched.                     )
+( Line 2: adjacent Wood catches Blaze. And since Blaze counts as       )
+( Fire, and a single rule self-loops against itself (remember [T2]?),  )
+( a whole row of Wood ignites in ONE keypress, not one tile per turn.  )
+( -- next: [T7] )
+
+( [T7] collision layers: what can/can't share a cell -------------------- )
+( Coin (Pickup layer) and Glow (Floor layer) sit on different layers,  )
+( so they CAN stack - that's what made "y = Coin and Glow" legal up in )
+( the LEGEND. Compare the CollisionLayers block above: everything      )
+( grouped on the Solid line can never do that with each other. )
+
+[ Player Coin ] -> [ Player ]
+
+( Coin is referred to and dropped -> removed. Glow was never           )
+( mentioned in this rule at all -> left alone. Walk onto the tile      )
+( below and watch the coin disappear while the glow stays put.         )
+( -- next: [T8] )
+
+( [T8] again: self-driving multi-turn animation ------------------------- )
+( again schedules one more turn automatically, with a short pause,     )
+( and keeps doing that for as long as something is still changing.     )
+( Without it, this decay chain would need one fresh keypress per       )
+( stage instead of running on its own: )
+
+[ Flame ] -> [ Embers ] again
+[ Embers ] -> [ Ash ] again
+
+( One keypress starts it; the rest plays by itself. This is the       )
+( trick behind any multi-turn spreading/decaying effect - explosions,  )
+( fuses, dying fires - stage the states, put again on the              )
+( transitions, press go once. -- next: [T9] )
+
+( [T9] late: rules that run after movement resolves --------------------- )
+( Ordinary rules run BEFORE this turn's movement is actually applied - )
+( they see where things are ABOUT to go, not where they end up. late   )
+( rules run afterward, once positions are final. )
+
+late [ Player Bell ] -> [ Player RungBell ]
+
+( Without late, this would only catch the ring one turn AFTER you'd    )
+( already arrived (the official docs hit this exact issue with a      )
+( crate-vanishing example). With late, arriving and ringing happen on  )
+( the same turn. -- next: [T10] )
+
+( [T10] grab bag --------------------------------------------------------- )
+( - DEBUG: add a line that just says "debug" up in the Prelude, near   )
+(   "title" and "author," and reload. It shows the exact compiled      )
+(   rules, including how "or" properties and no-direction rules        )
+(   actually expand under the hood.                                    )
+( - NO keyword: you've been reading it everywhere above ("no Wall",    )
+(   "no Flood") - it means "this must NOT be present," and it works    )
+(   even for objects that were never mentioned on the left otherwise.  )
+( - Object identity: PuzzleScript never promises the Flame you see     )
+(   after a rule fires is "the same" Flame that was there a moment     )
+(   before - a replacement and a destroy-then-recreate look identical  )
+(   to the engine. Don't try to track one specific tile's identity     )
+(   across a rule; build state machines out of distinct objects        )
+(   instead, the way [T8] does with Flame/Embers/Ash. -- next: [T11] )
+
+( [T11] capping how far a self-looping spread goes --------------------- )
+( PuzzleScript has no per-cell counter, so "spread outward, but stop    )
+( after N steps" has to be spelled out as N distinct object identities  )
+( - one per step remaining - exactly like Wood -> Spark -> Flame, or    )
+( Explosion:C -> Relay:B -> Relay:A. Here's that same idea, generic     )
+( and reusable: )
+
+[ Ring3 | no Ring no Wall ] -> [ Ring3 | Ring2 ]
+[ Ring2 | no Ring no Wall ] -> [ Ring2 | Ring1 ]
+[ Ring1 | no Ring no Wall ] -> [ Ring1 | Ring0 ]
+
+( Ring0 has no rule of its own - nothing ever spreads FROM it. That     )
+( missing fourth rule IS the cap: a single Ring3 seed produces exactly  )
+( a radius-3 diamond and then stops dead, no matter how much open       )
+( floor surrounds it - unlike Pulse back in [T4], which just kept       )
+( going until it hit a wall. Rename and recolor the four stages and     )
+( you've got a fixed-radius Pulse, or a fixed-radius blast for your     )
+( real project. Want it to grow one ring per turn instead of resolving  )
+( instantly? Put "again" on each transition, same as [T8] did for      )
+( Flame/Embers/Ash. )
+
+========================================================================
+WINCONDITIONS
+========================================================================
+( [T0] -- level_select / enable_level_select is a PuzzleScript PLUS      )
+( feature (a third-party fork), not part of vanilla PuzzleScript - it   )
+( won't compile here. Instead, every level below has a green Exit tile )
+( (d) sitting somewhere easy to reach right from the start. Walk onto  )
+( it whenever you're done poking at that demo - winning auto-advances  )
+( to the next level (and its MESSAGE), same as any PuzzleScript game.  )
+
+Some Player on Exit
+
+========================================================================
+LEVELS
+========================================================================
+
+( [T1] + [T3] -- push the Crates (top corridor) vs the SmartCrates    )
+( (bottom corridor). Same shove, different result. The middle row is  )
+( just a connector so the green Exit (d) is reachable either way. )
+##############
+#P.CC........#
+#......d.....#
+#P.SS........#
+##############
+MESSAGE [T1]/[T3]: the Crate row didn't budge, because the push rules never got grouped, so the domino effect never happens. SmartCrate pushed as one unit because of the leading +.
+
+( [T2] -- one Flood seed, one keypress. Watch it claim the whole room. )
+#############
+#o........dP#
+#############
+MESSAGE [T2]: no + or STARTLOOP anywhere in that rule, and the whole room still filled in a single turn - a lone rule already loops itself to exhaustion.
+
+( [T4] -- Ping (i) is direction-restricted, Pulse (u) isn't. Move around )
+( a bit and compare the shapes each one grows into. )
+###############
+#......P......#
+#d............#
+#......i......#
+#.............#
+###############
+#......u......#
+#.............#
+###############
+MESSAGE [T4]: Ping only ever grows into a flat horizontal line. Pulse grew a plus/diamond, because leaving the direction off a rule checks all four compass directions at once.
+
+( [T5] + [T6] -- x is Spark-and-Wood stacked in one cell (walk near it, )
+( press a direction, watch the Wood disappear from under the Spark).   )
+( z is a lit Blaze sitting next to a run of Wood (w) - watch the whole  )
+( row catch in one keypress. )
+#############
+#P..x......d#
+#############
+#zwwwww.....#
+#############
+MESSAGE [T5]/[T6]: the spark-on-wood tile lost its Wood but kept the Spark - Wood was referenced then dropped, so it was removed; Spark was referenced and repeated, so it stayed. The whole row of Wood caught at once, same as the Flood did in [T2].
+
+( [T7] -- y is a Coin stacked on a Glow. Walk onto it. )
+#########
+#P..y..d#
+#########
+MESSAGE [T7]: the coin vanished, the glow stayed - two different layers, two independent objects, one rule that only mentions Coin.
+
+( [T8] -- a lit Flame (f) sitting by itself. Press any direction once )
+( and then just watch. )
+#########
+#P..f..d#
+#########
+MESSAGE [T8]: one keypress, and Flame, Embers, then Ash played out on their own over the next couple of automatic turns, thanks to again.
+
+( [T9] -- walk onto the Bell (b) and see how fast it rings. )
+#########
+#P..b..d#
+#########
+MESSAGE [T9]: the bell rang the instant you arrived, because the ringing rule was marked late and checked your FINAL position for this turn, not your position before you moved.
+
+( [T11] -- Ring3 (r) sits dead center. The room is wide open on every )
+( side, well past a radius of 3 - watch it stop anyway. )
+###########
+#P.......d#
+#.........#
+#.........#
+#.........#
+#....r....#
+#.........#
+#.........#
+#.........#
+#.........#
+###########
+MESSAGE [T11]: a radius-3 diamond, then nothing - even though open floor keeps going for another six tiles in every direction. Ring0 has no rule of its own, so the chain has nowhere left to spread to.
+MESSAGE That's the whole map. Scroll back up to [T10] for the grab bag, or go pull these techniques into your real project.
