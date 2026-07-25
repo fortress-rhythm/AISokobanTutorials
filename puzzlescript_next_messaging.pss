@@ -1,0 +1,192 @@
+(
+========================================================================
+ PUZZLESCRIPT NEXT EXTENSIONS TUTORIAL - MESSAGING & FLOW
+ This is NOT vanilla PuzzleScript, and not quite PuzzleScript+ either.
+ Paste it into the PuzzleScript Next editor (david-pfx/PuzzleScriptNext
+ on GitHub, hosted from that repo's README) - it will NOT compile at
+ puzzlescript.net or in a plain PuzzleScript+ editor, since every
+ feature below is a Next-only addition on top of PS+.
+
+ Read puzzlescript_tutorial_4_messaging.pss AND puzzlescript_plus_
+ messaging.pss (both in this repo) FIRST. PuzzleScript Next is a
+ direct successor to PS+ and keeps everything from it working
+ unchanged: level_select/section/goto, runtime_metadata_twiddling
+ (noundo/norestart set/wipe/default from a rule), the in-rule undo/
+ nosave/quit commands, message_text_align and friends. This file
+ covers ONLY what Next adds on top of THAT, checked against david-
+ pfx/PuzzleScriptNext's own engine source, not guessed from memory.
+
+ TUTORIAL MAP -- Ctrl+F for a tag like [T3] to jump straight to it.
+
+ [T1] LINK: a whole new way to jump between sections, tied to
+      touching a specific OBJECT rather than an unconditional
+      redirect or a menu pick - level branching, PS+ never had this
+ [T2] enable_pause: Escape now opens a real pause menu instead of
+      just dropping straight back to the title screen
+ [T3] allow_undo_level: lets Z rewind back across a level boundary
+      into the level you just finished, instead of stopping cold the
+      moment a new level starts
+ [T4] status / status_line: a persistent on-screen status line,
+      set from a rule - different from MESSAGE, which is a modal
+      popup that pauses the game until dismissed
+ [T5] grab bag: everything else Next adds (gosub, log, afx, mouse_
+      clicks, auto_level_titles, title/author/keyhint colors,
+      export_options) plus a reminder of what still just works,
+      unchanged, from the PS+ file
+========================================================================
+)
+
+title PuzzleScript Next Extensions - Messaging & Flow Tutorial
+author Claude, for Gail
+
+( [T2] -- Escape opens a pause menu instead of returning straight to  )
+( the title screen. )
+enable_pause
+
+( [T3] -- lets undo rewind back across a level boundary; see [T3].    )
+allow_undo_level
+
+( [T4] -- turns on the persistent status-line display the "status"    )
+( in-rule command below writes to. )
+status_line
+
+========================================================================
+OBJECTS
+========================================================================
+
+Background .
+lightgray
+
+Wall #
+darkgray
+
+Player P
+blue
+
+Exit d
+green
+.....
+.000.
+.000.
+.000.
+.....
+
+Portal l
+purple
+.....
+.000.
+.000.
+.000.
+.....
+
+Beacon k
+lightblue
+.....
+.000.
+.000.
+.000.
+.....
+
+========================================================================
+LEGEND
+========================================================================
+( nothing composite this time. )
+
+========================================================================
+SOUNDS
+========================================================================
+( intentionally empty. )
+
+========================================================================
+COLLISIONLAYERS
+========================================================================
+
+Background
+Exit, Portal, Beacon
+Wall, Player
+
+========================================================================
+RULES
+========================================================================
+
+( [T1] LINK: level branching tied to touching an object -------------- )
+( The LEVELS section below has a line reading "link Portal GrabBag"    )
+( sitting directly above this section's own level - that's what tells )
+( Next that touching a Portal object anywhere in THIS level should be  )
+( able to jump to the GrabBag section. This rule is what actually      )
+( fires that jump the moment you touch it: )
+
+[ Player Portal ] -> [ Player Portal ] link
+
+( -- next: [T4], since [T2] and [T3] are both Prelude-only switches -  )
+( see their comments up top and their levels below. )
+
+( [T4] status / status_line: a persistent status line, not a popup ---- )
+( "message" pauses the whole game until you dismiss it. "status" just   )
+( writes text to a small always-on readout and lets you keep playing - )
+( status_line up in the Prelude is what makes that readout visible at  )
+( all. )
+
+[ Player Beacon ] -> [ Player Beacon ] status Beacon touched - this line updates live and never blocks you.
+
+========================================================================
+WINCONDITIONS
+========================================================================
+
+Some Player on Exit
+
+========================================================================
+LEVELS
+========================================================================
+
+link Portal GrabBag
+
+section LinkDemo
+
+#########
+#P..l..d#
+#########
+MESSAGE [T1]: touching that Portal tile should have jumped you straight to the GrabBag section below, skipping Pause/UndoLevel/Status entirely - a LINK jump, not a menu pick and not an unconditional LEVELS-list goto.
+
+MESSAGE [T1] continued: reading this instead means you reached the Exit without stepping on the Portal - go back and actually touch it to see the jump. Either way, the Exit from here continues normally into Pause.
+
+section Pause
+
+#########
+#P......#
+#......d#
+#########
+MESSAGE [T2]: enable_pause is on, so Escape now opens an actual pause menu instead of just bailing to the title screen the way plain PuzzleScript(+) always has. Try it before moving on.
+
+section UndoLevel
+
+#######
+#P....#
+#....d#
+#######
+MESSAGE [T3] part 1: remember this room, then reach the Exit.
+
+#######
+#P....#
+#....d#
+#######
+MESSAGE [T3] part 2: now hold undo (Z) down. Normally it would stop cold the instant you rewind back to the start of THIS room, because starting a new level clears the undo stack. allow_undo_level up in the Prelude skips that clearing, so a long enough undo chain here keeps going and walks you back through the previous room's final steps too.
+
+section Status
+
+#########
+#P..k..d#
+#########
+MESSAGE [T4]: touching the Beacon wrote text to the status line via the "status" command - notice the game never paused for it the way a "message" command would have. Compare that to every popup back in the vanilla and PS+ files, all of which stopped play until you dismissed them.
+
+section GrabBag
+
+MESSAGE [T5] grab bag, part 1: gosub and log are rule-flow-control commands - gosub jumps into another rule group and can return, log just prints to the console - both about controlling RULES execution, not about messaging or level flow, so they only get a mention here. afx commands extend the sound-effect system past vanilla's fixed sfx0-sfx10 slots.
+
+MESSAGE [T5] grab bag, part 2: mouse_clicks and auto_level_titles are new Prelude flags (mouse-driven input; auto-generated level names in menus). keyhint_color, title_color, and author_color add a few more cosmetic Prelude colors on top of vanilla's background_color/text_color.
+
+MESSAGE [T5] grab bag, part 3: export_options trims title/footer/padding out of an exported standalone game.
+
+MESSAGE [T5] grab bag, part 4: and everything from the PS+ file - level_select, section, goto, runtime_metadata_twiddling with noundo/norestart set/wipe/default, the in-rule undo/nosave/quit commands, message_text_align and its neighbors - still works completely unchanged here too.
+
+MESSAGE That's the whole set across all three files - vanilla, PS+, and Next.

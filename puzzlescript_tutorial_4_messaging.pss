@@ -1,0 +1,343 @@
+(
+========================================================================
+ PUZZLESCRIPT MESSAGES & ADVANCED FLOW TUTORIAL
+ Paste this whole file into the editor at puzzlescript.net and hit RUN.
+ Written for classic PuzzleScript - not any of the community forks.
+ Every command below was checked against increpare's own engine source
+ and documentation, not guessed from memory.
+========================================================================
+
+ TUTORIAL MAP -- Ctrl+F for a tag like [T3] to jump straight to it.
+
+ [T0]  Prelude / Objects / Legend / Sounds / CollisionLayers - skim it
+ [T1]  Attached MESSAGE: shown the instant a level's win-condition fires
+ [T2]  Standalone MESSAGE screens: interstitials with no map behind them,
+       plus back-to-back MESSAGE lines queuing up as separate screens
+ [T3]  The in-RULE "message" command: a mid-level popup that does NOT
+       advance to the next level - different mechanism from [T1]/[T2]
+ [T4]  CHECKPOINT: a rule-triggered save point
+ [T5]  RESTART: a rule-triggered "press R" - and how [T4] quietly moves
+       the spot RESTART (and the real R key) sends you back to
+ [T6]  CANCEL: reverting an entire turn, not just blocking one cell
+ [T7]  WIN: winning straight from a rule, no WINCONDITIONS geometry
+       needed at all
+ [T8]  noundo / norestart: taking the Z and R keys away from the player
+       entirely - a Prelude-wide switch, not a per-level one
+ [T9]  Combining a normal rewrite with a trailing command in one rule
+ [T10] Grab bag: keybindings, debug/verbose_logging, message limits,
+       and one real discrepancy between the docs and the engine
+
+ Every tag above appears twice more below: once as a comment right
+ above the RULES it describes (skipped by [T1]/[T2]/[T8], which are
+ not RULES-section features at all), and once above the LEVEL that
+ demonstrates it. Each level's own attached MESSAGE recaps the point.
+
+ One structural fact worth knowing before you start: WINCONDITIONS is
+ ONE block for the whole file, checked after every level, not per
+ level. "Some Player on Exit" below applies to [T7]'s level too, even
+ though that level has no Exit tile on it anywhere - see [T7] for why
+ that matters.
+
+ Want the fork-only extensions - in-game level-select menus, a pause
+ menu, message alignment, chapter branching? Those aren't part of
+ classic PuzzleScript and won't compile here. See the companion files
+ puzzlescript_plus_messaging.pss and puzzlescript_next_messaging.pss
+ in this same repo instead - each needs a different, fork-specific
+ editor to run, as explained in its own header.
+========================================================================
+)
+
+title Messages & Advanced Flow Tutorial
+author Claude, for Gail
+
+( [T8] -- uncomment either line below (delete the parens) and reload  )
+( to see the Z or R key stop responding. These are switches for the   )
+( WHOLE file, not any one level - so there's no level here that can    )
+( demonstrate them by itself. See [T8] further down for the full note.)
+( noundo )
+( norestart )
+
+========================================================================
+OBJECTS
+========================================================================
+( [T0] -- Background, Wall, Player, Crate, and Guard are solid-layer   )
+( objects, so they stay flat colors filling the whole cell. Everything )
+( else below sits ON TOP of Background - a small 3x3 sprite centered   )
+( in the cell with a transparent border, same convention as the       )
+( earlier rule-engine tutorial in this repo. )
+
+Background .
+lightgray
+
+Wall #
+darkgray
+
+Player P
+blue
+
+Crate C
+orange
+
+Guard g
+purple
+
+Exit d
+green
+.....
+.000.
+.000.
+.000.
+.....
+
+Sign n
+lightblue
+.....
+.000.
+.000.
+.000.
+.....
+
+SavePoint s
+yellow
+.....
+.000.
+.000.
+.000.
+.....
+
+Lava k
+red
+.....
+.000.
+.000.
+.000.
+.....
+
+Trophy t
+lightgreen
+.....
+.000.
+.000.
+.000.
+.....
+
+Shadow h
+darkred
+.....
+.000.
+.000.
+.000.
+.....
+
+========================================================================
+LEGEND
+========================================================================
+( [T0] -- nothing composite this time. Every symbol above was already )
+( assigned directly with the "Name Char" shortcut in OBJECTS, so there )
+( are no "or"/"and" combinations that need their own LEGEND entry.     )
+
+========================================================================
+SOUNDS
+========================================================================
+( [T0] -- intentionally empty for this tutorial. )
+
+========================================================================
+COLLISIONLAYERS
+========================================================================
+( [T0] -- Shadow gets its OWN layer, separate from Crate. That's not   )
+( an accident - [T6]'s rule needs a Crate and a Shadow to be able to   )
+( occupy the SAME cell at once, so it can catch that overlap and       )
+( react to it. If they shared a layer they could never overlap in the )
+( first place, and the rule would never have anything to match.        )
+
+Background
+Exit, Sign, SavePoint, Lava, Trophy, Guard
+Shadow
+Wall, Player, Crate
+
+========================================================================
+RULES
+========================================================================
+
+( [T3] the in-RULE "message" command -------------------------------- )
+( This is a completely different mechanism from the LEVELS-section     )
+( MESSAGE you'll meet in [T1]/[T2] below. "message" is a COMMAND you   )
+( tack onto the end of a rule's output, same slot "again" lives in.    )
+( It pops a text screen, same renderer and all, but it does NOT        )
+( advance to the next level - the current level just resumes, exactly )
+( as it was, once you dismiss it. It reads everything to the right of  )
+( the word "message" as the text, so it has to be the LAST thing on    )
+( the line. )
+
+[ Player Sign ] -> [ Player Sign ] message This popped from a RULE, not a level - reach the Exit and compare.
+
+( Nothing here removes Sign or replaces it with anything, so walking   )
+( onto it again re-shows the same message every time - useful for a    )
+( reusable in-world hint sign, as opposed to a one-shot trigger.        )
+( -- next: [T4] )
+
+( [T4] CHECKPOINT: a rule-triggered save point ------------------------ )
+( [T5] RESTART: a rule-triggered "press R" ----------------------------- )
+( Both commands below are combined with a normal keyword pattern         )
+( exactly the way "message" was above - they just go in the same slot. )
+
+late [ Player SavePoint ] -> CHECKPOINT message Checkpoint set - RESTART now returns you here, not to the level start.
+
+[ Player Lava ] -> [ Player Lava ] restart
+
+( CHECKPOINT saves the live game state the moment this late rule sees  )
+( Player standing on SavePoint - late, so it's checking where you      )
+( ACTUALLY ended up this turn, not where you were about to go. From    )
+( that point on, both the RESTART command above and the player's own R )
+( key stop returning to the level's opening layout and instead reload  )
+( from that saved state. Touch Lava before ever touching SavePoint and )
+( restart sends you all the way back to the start, same as always -    )
+( touch SavePoint first and THEN Lava, and it drops you back on the    )
+( SavePoint tile instead. Nothing about the R key itself changed; what )
+( changed is which state counts as "the beginning" for as long as this )
+( browser tab's checkpoint sticks around. -- next: [T6] )
+
+( [T6] CANCEL: reverting an entire turn -------------------------------- )
+( A plain Wall stops movement by being physically solid - it can only   )
+( ever block, unconditionally, every time. CANCEL does something a      )
+( collision layer structurally can't: it reacts to a CONDITION after    )
+( the fact, and when that condition is met, it throws away everything   )
+( that happened this turn - not just the one piece that triggered it. )
+
+late [ Crate Shadow ] -> CANCEL
+
+( This says nothing about Player at all - it only fires if a Crate      )
+( would end up sharing a cell with Shadow. But push a Crate toward a    )
+( Shadow tile and your OWN forward step gets undone right along with    )
+( the push, even though Player never touched Shadow directly - because )
+( late checks the position after the whole turn resolved, and CANCEL    )
+( doesn't undo "the push," it undoes "the turn." That's a strictly      )
+( more powerful tool than solidity for anything conditional: a one-way  )
+( gate, a "you can walk here but you can't push crates here" zone, a    )
+( trap that only springs if you're carrying something. -- next: [T7] )
+
+( [T7] WIN: winning straight from a rule ------------------------------- )
+( WINCONDITIONS below is the usual "Some Player on Exit" - but that's   )
+( checked for every level in this file, including the one after this   )
+( comment, which has no Exit tile on its map at all. The ONLY way that  )
+( level can end is this: )
+
+[ Player Trophy ] -> [ Player Trophy ] win
+
+( -- next: [T9], since [T8] has no RULES-section entry - it's a        )
+( Prelude switch, see the top of this file and the [T8] level below. )
+
+( [T9] combining a normal rewrite with a trailing command --------------- )
+( Every command so far sat on a right side that just repeated the left )
+( side unchanged - [ Player Sign ] -> [ Player Sign ] message ... left  )
+( both objects untouched and only added a command. Commands can just    )
+( as easily ride along on a rule that ALSO moves something for real: )
+
+[ > Player | Guard ] -> [ < Player | Guard ] message Halt! No further.
+
+( No direction keyword out front, so [as covered back in the first      )
+( tutorial's T4] this expands to all four compass directions - approach )
+( Guard from any side and the same thing happens. The pattern reads     )
+( "Player moving toward Guard" and rewrites it to "Player moving away    )
+( from Guard" - so instead of just stopping at the wall the way Guard's )
+( own solidity already would, Player visibly recoils, and the message   )
+( rides along on the exact same rule that caused the recoil. )
+
+========================================================================
+WINCONDITIONS
+========================================================================
+( [T0] -- global for the whole file, checked after every level. Every  )
+( level needs an Exit tile to win normally EXCEPT [T7]'s, which wins    )
+( entirely through the "win" command in RULES above instead.            )
+
+Some Player on Exit
+
+========================================================================
+LEVELS
+========================================================================
+
+( [T1] -- a plain room. The MESSAGE line right under this map, with no )
+( blank line in between, is ATTACHED to this specific level - it fires )
+( the instant you reach the Exit and this level's win-condition is met.)
+#######
+#P....#
+#....d#
+#######
+MESSAGE [T1]: that was an ATTACHED message - a MESSAGE line sitting directly beneath one level's map, shown the moment THAT level's WINCONDITIONS are satisfied.
+
+( [T2] -- two completely standalone MESSAGE screens, back to back,     )
+( with blank lines around each and no map behind either one. Each is   )
+( its own entry in the level sequence, dismissed independently. )
+
+MESSAGE [T2] part 1 of 2: this screen has no map behind it at all - a MESSAGE line standing alone between blank lines becomes its own screen in the sequence, same as a level would.
+
+MESSAGE [T2] part 2 of 2: and here's a second one, immediately after the first. Consecutive standalone MESSAGE lines just queue up as separate screens, each waiting on its own X to continue.
+
+( [T3] -- Sign (n) pops a message the moment you step on it, WITHOUT   )
+( ending the level. Reach the Exit afterward to see this level's own   )
+( attached recap fire separately. )
+#########
+#P..n...#
+#.......#
+#......d#
+#########
+MESSAGE [T3]: that popup came from an in-RULE "message" command, not from a level's own MESSAGE line - and unlike this recap, it didn't end anything. Walk back onto the Sign and it'll show again; nothing consumed it.
+
+( [T4]/[T5] -- SavePoint (s) sets a checkpoint; Lava (k) restarts the  )
+( level. Try walking straight into the Lava first and watch R/RESTART  )
+( send you all the way back to P's start. Then reset, touch the        )
+( SavePoint, THEN the Lava, and compare where you land. )
+##################
+#P...s.......k..d#
+##################
+MESSAGE [T4]/[T5]: touching Lava before the SavePoint restarted you at the very start, same as always. Touch the SavePoint first, though, and Lava's restart drops you back on top of it instead - CHECKPOINT quietly moved the target that both RESTART and your own R key aim at.
+
+( [T6] -- an open room, not a corridor, so the Exit is always reachable )
+( whether or not you ever touch the Crate (C). Push it toward the      )
+( Shadow (h) tile on purpose and watch your own step get undone right  )
+( along with the push. )
+#############
+#P.C.h......#
+#...........#
+#..........d#
+#############
+MESSAGE [T6]: pushing the Crate onto the Shadow tile cancelled the whole turn - your own forward step included - even though you never touched Shadow yourself. late+CANCEL reverts everything that happened that turn, not just the one collision that triggered it.
+
+( [T7] -- no Exit tile anywhere on this map. The Trophy (t) is the     )
+( only way out. )
+#######
+#P..t.#
+#######
+MESSAGE [T7]: that win came entirely from the "win" command sitting on Trophy's rule - there was no Exit on that map for the global "Some Player on Exit" WINCONDITIONS to ever satisfy.
+
+( [T8] -- noundo / norestart are Prelude-wide switches, so there's no  )
+( level that can demonstrate them in isolation the way every other tag )
+( here does. This room is just a placeholder for the recap. )
+#########
+#P......#
+#.......#
+#......d#
+#########
+MESSAGE [T8]: scroll up to the Prelude, right under "author," and uncomment noundo or norestart - reload the page and Z or R will stop responding, everywhere in the file, not just in one level. Re-comment them before you keep exploring, or undo/restart stay off for the rest of this session.
+
+( [T9] -- Guard (g) knocks Player back and shows a message in ONE      )
+( rule. Approach from any side; the recoil works in all four           )
+( directions since the rule never specified one. )
+###########
+#P..g.....#
+#.........#
+#........d#
+###########
+MESSAGE [T9]: Guard's rule did two things at once - reversed Player's movement AND popped a message - because a trailing command can ride along on a rule that's also doing a real rewrite, not just on a pass-through rule like Sign's back in [T3].
+
+( [T10] -- grab bag, standalone screens, no map. )
+
+MESSAGE [T10] grab bag, part 1: default keys during play are arrows or WASD to move; Z, U, or Ctrl+Z to undo; R to restart; X, Enter, Space, or C for action (and to dismiss a message like this one); Escape returns to the title screen.
+
+MESSAGE [T10] grab bag, part 2: add a line that just says "debug" up in the Prelude (near "title") to see the exact compiled rule instructions in the console on RUN. "verbose_logging" does the same for CHECKPOINT/AGAIN/restart events while you actually play, not just at compile time.
+
+MESSAGE [T10] grab bag, part 3: MESSAGE text auto-wraps at 34 characters wide and centers itself, but the screen only fits 12 wrapped lines - go past that and the compiler still runs your game, it just warns "Message too long to fit on screen" and truncates. Keep popups short.
+
+MESSAGE [T10] grab bag, part 4 - a real one: the docs claim key_repeat_interval defaults to 1.5 seconds. The engine's actual default is 0.15 seconds - a straight typo in the documentation, not a fork difference or a setting you're missing. If PuzzleScript's default key-repeat has ever felt snappier than advertised, that's why.
+
+MESSAGE That's the whole file. Two more of these live in this repo for the PuzzleScript+ and PuzzleScript Next forks specifically - go compare what a fork-only level-select menu and pause screen add on top of everything above.
