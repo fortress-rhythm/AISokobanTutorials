@@ -243,6 +243,8 @@ late [ Crate Shadow ] -> CANCEL
 ( own solidity already would, Player visibly recoils, and the message   )
 ( rides along on the exact same rule that caused the recoil. )
 
+[ > Player | Crate ] -> [ > Player | > Crate ]
+
 ========================================================================
 WINCONDITIONS
 ========================================================================
@@ -289,7 +291,7 @@ MESSAGE [T3]: that popup came from an in-RULE "message" command, not from a leve
 ( SavePoint, THEN the Lava, and compare where you land. )
 ##################
 #P...s.......k..d#
-##################
+#...............##
 MESSAGE [T4]/[T5]: touching Lava before the SavePoint restarted you at the very start, same as always. Touch the SavePoint first, though, and Lava's restart drops you back on top of it instead - CHECKPOINT quietly moved the target that both RESTART and your own R key aim at.
 
 ( [T6] -- an open room, not a corridor, so the Exit is always reachable )
